@@ -21,7 +21,12 @@ jobs:
 
     - name: Install Android SDK
       uses: android-actions/setup-android@v3
-      
+
+    - name: Force Gradle to use official download
+      run: |
+        echo "org.gradle.jvmargs=-Xmx2G" >> gradle.properties
+        echo "distributionUrl=https\://services.gradle.org/distributions/gradle-8.10.2-all.zip" > gradle/wrapper/gradle-wrapper.properties
+
     - name: Make gradlew executable
       run: chmod +x ./gradlew
 
