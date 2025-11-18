@@ -1,46 +1,28 @@
-name: Build Android APK
-
-on:
-  workflow_dispatch:
-  push:
-    branches: [ "master", "main" ]
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Set up JDK
-      uses: actions/setup-java@v4
-      with:
-        distribution: 'temurin'
-        java-version: 17
-
-    - name: Install Android SDK
-      uses: android-actions/setup-android@v3
-
-    - name: Fix Gradle config
+- name: Download OpenCV Android SDK
       run: |
-        printf "%s\n" \
-        "org.gradle.jvmargs=-Xmx2G -Dfile.encoding=UTF-8" \
-        "android.useAndroidX=true" \
-        "android.nonTransitiveRClass=true" \
-        > gradle.properties
+        VERSION="4.7.0"
+        FILE="opencv-${VERSION}-android-sdk.zip"
+        URL="https://github.com/opencv/opencv/releases/download/${VERSION}/${FILE}"
 
-        sed -i 's#distributionUrl=.*#distributionUrl=https://services.gradle.org/distributions/gradle-8.10.2-all.zip#' \
-        gradle/wrapper/gradle-wrapper.properties
+        wget -q --show-progress "$URL" -O "$FILE"
+        unzip -q "$FILE" -d opencv-sdk
+        echo "OpenCV_DIR=$(pwd)/opencv-sdk/OpenCV-android-sdk/sdk/native/jni" >> $GITHUB_ENV
+        echo "CMAKE_PREFIX_PATH=$(pwd)/opencv-sdk/OpenCV-android-sdk/sdk/native/jni" >> $GITHUB_ENV
+
+    - name: Fix Gradle config (gradle.properties + wrapper)
+      run: |
+        cat <<EOF > gradle.properties
+org.gradle.jvmargs=-Xmx2G -Dfile.encoding=UTF-8
+android.useAndroidX=true
+android.nonTransitiveRClass=true
+EOF
+        sed -i 's#distributionUrl=.*#distributionUrl=https://services.gradle.org/distributions/gradle-8.10.2-all.zip#' gradle/wrapper/gradle-wrapper.properties
 
     - name: Make gradlew executable
       run: chmod +x ./gradlew
 
     - name: Build Debug APK
+      env:
+        OpenCV_DIR: ${{ env.OpenCV_DIR }}
+        CMAKE_PREFIX_PATH: ${{ env.CMAKE_PREFIX_PATH }}
       run: ./gradlew assembleDebug --stacktrace
-
-    - name: Upload APK
-      uses: actions/upload-artifact@v4
-      with:
-        name: app-debug
-        path: app/build/outputs/apk/debug/app-debug.apk
