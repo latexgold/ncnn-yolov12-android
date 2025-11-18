@@ -22,17 +22,16 @@ jobs:
     - name: Install Android SDK
       uses: android-actions/setup-android@v3
 
-    - name: Fix Gradle config (gradle.properties + wrapper)
+    - name: Fix Gradle config
       run: |
-        # Re-create gradle.properties with correct values
-        cat <<EOF > gradle.properties
-org.gradle.jvmargs=-Xmx2G -Dfile.encoding=UTF-8
-android.useAndroidX=true
-android.nonTransitiveRClass=true
-EOF
-        
-        # Fix Gradle wrapper distribution URL
-        sed -i 's#distributionUrl=.*#distributionUrl=https://services.gradle.org/distributions/gradle-8.10.2-all.zip#' gradle/wrapper/gradle-wrapper.properties
+        printf "%s\n" \
+        "org.gradle.jvmargs=-Xmx2G -Dfile.encoding=UTF-8" \
+        "android.useAndroidX=true" \
+        "android.nonTransitiveRClass=true" \
+        > gradle.properties
+
+        sed -i 's#distributionUrl=.*#distributionUrl=https://services.gradle.org/distributions/gradle-8.10.2-all.zip#' \
+        gradle/wrapper/gradle-wrapper.properties
 
     - name: Make gradlew executable
       run: chmod +x ./gradlew
