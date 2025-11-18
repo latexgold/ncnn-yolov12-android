@@ -3,56 +3,60 @@ name: Build Android APK
 on:
   workflow_dispatch:
   push:
-    branches:
-      - master
-      - main
+    branches: ["master", "main"]
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout source
+
+    - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Set up Java
+    - name: Set up JDK
       uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
         java-version: 17
 
-    - name: Set up Android SDK
+    - name: Install Android SDK
       uses: android-actions/setup-android@v3
 
-    # ---------------------------
-    # DOWNLOAD OPENCV + NCNN
-    # ---------------------------
+    # --- FIX ANDROIDX ---
+    - name: Ensure AndroidX enabled
+      run: |
+        echo "android.useAndroidX=true" >> gradle.properties
+        echo "android.nonTransitiveRClass=true" >> gradle.properties
+
+    # --- DOWNLOAD OPENCV MOBILE ---
     - name: Download OpenCV Mobile
       run: |
         mkdir -p app/3rdparty/opencv
-        wget https://github.com/opencv/opencv/releases/download/4.9.0/opencv-mobile-4.9.0-android.zip -O opencv.zip
-        unzip opencv.zip -d app/3rdparty/opencv
-        mv app/3rdparty/opencv/opencv-mobile-4.9.0-android/sdk app/3rdparty/opencv/sdk
+        wget https://github.com/nihui/opencv-mobile/releases/download/v4.9.0/opencv-mobile-4.9.0-android.zip -O opencv.zip
+        unzip -q opencv.zip -d app/3rdparty/opencv
 
-    - name: Download NCNN (arm64-v8a)
+    # --- DOWNLOAD NCNN ANDROID ---
+    - name: Download NCNN Android Vulkan
       run: |
         mkdir -p app/3rdparty/ncnn
-        wget https://github.com/Tencent/ncnn/releases/download/20240420/ncnn-20240420-android-vulkan.zip -O ncnn.zip
-        unzip ncnn.zip -d app/3rdparty/ncnn
-        mv app/3rdparty/ncnn/ncnn-20240420-android-vulkan/arm64-v8a app/3rdparty/ncnn/arm64-v8a
+        wget https://github.com/Tencent/ncnn/releases/download/20240410/ncnn-20240410-android-vulkan.zip -O ncnn.zip
+        unzip -q ncnn.zip -d app/3rdparty/ncnn
 
-    # ---------------------------
-    # BUILD APK
-    # ---------------------------
+    # --- FORCE GRADLE VERSION ---
+    - name: Force Gradle Wrapper
+      run: |
+        mkdir -p gradle/wrapper
+        echo "distributionUrl=https://services.gradle.org/distributions/gradle-8.10.2-all.zip" > gradle/wrapper/gradle-wrapper.properties
+
     - name: Make gradlew executable
       run: chmod +x ./gradlew
 
-    - name: Build Debug APK
+    # --- BUILD 64-BIT APK ---
+    - name: Build Debug APK (arm64 only)
       run: ./gradlew assembleDebug --stacktrace
 
-    # ---------------------------
-    # UPLOAD APK
-    # ---------------------------
+    # --- UPLOAD APK ---
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
