@@ -3,20 +3,16 @@ cmake_minimum_required(VERSION 3.22.1)
 project("yolov12")
 
 # ============================================================
-# Android NDK setup
+# C++ Standard
 # ============================================================
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-add_definitions(-DANDROID_NDK)
-
 # ============================================================
-# OpenCV
+# OpenCV (nihui mobile build)
 # ============================================================
 set(OpenCV_DIR ${CMAKE_SOURCE_DIR}/3rdparty/opencv/sdk/native/jni)
 find_package(OpenCV REQUIRED)
-
-# For older OpenCV packages that don’t auto-link
 include_directories(${OpenCV_INCLUDE_DIRS})
 
 # ============================================================
@@ -24,7 +20,6 @@ include_directories(${OpenCV_INCLUDE_DIRS})
 # ============================================================
 set(ncnn_DIR ${CMAKE_SOURCE_DIR}/3rdparty/ncnn/arm64-v8a/lib/cmake/ncnn)
 find_package(ncnn REQUIRED)
-
 include_directories(${ncnn_INCLUDE_DIRS})
 
 # ============================================================
@@ -37,7 +32,7 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
 )
 
 # ============================================================
-# Android system libs
+# Android NDK system libs
 # ============================================================
 find_library(log-lib log)
 find_library(android-lib android)
