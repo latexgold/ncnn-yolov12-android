@@ -8,8 +8,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     env:
-      # Edit this if you want a different official version from cmake.org/download
       CMAKE_VERSION: "3.22.1"
 
     steps:
@@ -19,94 +19,102 @@ jobs:
     - name: Set up JDK (Temurin 17)
       uses: actions/setup-java@v4
       with:
-        distribution: 'temurin'
+        distribution: "temurin"
         java-version: 17
 
     - name: Install Android SDK
       uses: android-actions/setup-android@v3
 
-    # ------------------------------
-    # Install official CMake from cmake.org
-    # ------------------------------
+    # -------------------------------------------------------
+    # Install CMake (official installer)
+    # -------------------------------------------------------
     - name: Install official CMake from cmake.org
       run: |
         set -e
-        echo "Using official cmake.org installer for version: ${CMAKE_VERSION}"
-        # Construct official cmake.org installer filename and URL
         CMK="cmake-${CMAKE_VERSION}-linux-x86_64.sh"
-        # The folder on cmake.org is like v3.22 for 3.22.1: use ${CMAKE_VERSION%.*}
         URL="https://cmake.org/files/v${CMAKE_VERSION%.*}/${CMK}"
-        echo "Attempting to download official CMake installer from: $URL"
-        # Try to download; fail with a helpful message if 404
-        if ! wget -q --show-progress "$URL" -O "$CMK"; then
-          echo "ERROR: Failed to download CMake from $URL"
-          echo "Please verify the exact installer URL at: http://www.cmake.org/download"
-          exit 2
+        echo "Downloading CMake: $URL"
+
+        if ! wget -q "$URL" -O "$CMK"; then
+          echo "Failed to download CMake from $URL"
+          exit 1
         fi
+
         chmod +x "$CMK"
         sudo ./"$CMK" --skip-license --prefix=/usr/local
-        /usr/local/bin/cmake --version
 
-    # ------------------------------
-    # Ensure gradle.properties (safe overwrite)
-    # ------------------------------
+        cmake --version
+
+    # -------------------------------------------------------
+    # gradle.properties (safe overwrite)
+    # -------------------------------------------------------
     - name: Ensure gradle.properties (AndroidX + JVM args)
       run: |
-        cat > gradle.properties <<'EOF'
+        cat > gradle.properties << 'EOF'
 org.gradle.jvmargs=-Xmx2G -Dfile.encoding=UTF-8
 android.useAndroidX=true
 android.nonTransitiveRClass=true
 EOF
-        echo "gradle.properties written."
 
-    # ------------------------------
-    # Fix Gradle wrapper URL (safe)
-    # ------------------------------
+    # -------------------------------------------------------
+    # Fix Gradle wrapper URL
+    # -------------------------------------------------------
     - name: Fix Gradle wrapper distribution URL
       run: |
-        if [ -f gradle/wrapper/gradle-wrapper.properties ]; then
-          sed -i 's#distributionUrl=.*#distributionUrl=https://services.gradle.org/distributions/gradle-8.10.2-all.zip#' gradle/wrapper/gradle-wrapper.properties
-        else
-          mkdir -p gradle/wrapper
-          cat > gradle/wrapper/gradle-wrapper.properties <<'EOF'
+        mkdir -p gradle/wrapper
+        cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
 distributionBase=GRADLE_USER_HOME
 distributionPath=wrapper/dists
 zipStoreBase=GRADLE_USER_HOME
 zipStorePath=wrapper/dists
 distributionUrl=https\://services.gradle.org/distributions/gradle-8.10.2-all.zip
 EOF
-        fi
 
+    # -------------------------------------------------------
+    # Prepare 3rdparty folder structure
+    # -------------------------------------------------------
     - name: Create 3rdparty folders
       run: |
         mkdir -p app/3rdparty/opencv
         mkdir -p app/3rdparty/ncnn
 
-    - name: Download OpenCV Mobile (nihui opencv-mobile v4.9.0)
+    # -------------------------------------------------------
+    # Download OpenCV
+    # -------------------------------------------------------
+    - name: Download OpenCV Mobile (nihui v4.9.0)
       run: |
         cd app/3rdparty/opencv
-        wget -q --show-progress https://github.com/nihui/opencv-mobile/releases/download/v4.9.0/opencv-mobile-4.9.0-android.zip -O opencv.zip
+        wget -q https://github.com/nihui/opencv-mobile/releases/download/v4.9.0/opencv-mobile-4.9.0-android.zip -O opencv.zip
         unzip -q opencv.zip
-        if [ -d opencv-mobile-4.9.0-android/sdk ]; then
-          mv opencv-mobile-4.9.0-android/sdk sdk
-        fi
+        mv opencv-mobile-4.9.0-android/sdk sdk || true
         ls -la
 
+    # -------------------------------------------------------
+    # Download NCNN
+    # -------------------------------------------------------
     - name: Download NCNN Android Vulkan (arm64-v8a)
       run: |
         cd app/3rdparty/ncnn
-        wget -q --show-progress https://github.com/Tencent/ncnn/releases/download/20240420/ncnn-20240420-android-vulkan.zip -O ncnn.zip || wget -q --show-progress https://github.com/Tencent/ncnn/releases/download/20240410/ncnn-20240410-android-vulkan.zip -O ncnn.zip
+        wget -q https://github.com/Tencent/ncnn/releases/download/20240420/ncnn-20240420-android-vulkan.zip -O ncnn.zip \
+        || wget -q https://github.com/Tencent/ncnn/releases/download/20240410/ncnn-20240410-android-vulkan.zip -O ncnn.zip
+
         unzip -q ncnn.zip
-        find . -type d -name "arm64-v8a" -print -exec sh -c 'for d; do mkdir -p arm64-v8a && cp -r "$d"/* arm64-v8a/; done' sh {} \; || true
+        find . -type d -name "arm64-v8a" -exec cp -r {}/* arm64-v8a/ \; || true
         ls -la
 
-    - name: Show 3rdparty folder tree (diagnostic)
+    # -------------------------------------------------------
+    # Diagnostics
+    # -------------------------------------------------------
+    - name: Show 3rdparty folder tree
       run: |
-        echo "==== OpenCV tree ===="
-        find app/3rdparty/opencv -maxdepth 6 | sort || true
-        echo "==== NCNN tree ===="
-        find app/3rdparty/ncnn -maxdepth 8 | sort || true
+        echo "==== OpenCV ===="
+        find app/3rdparty/opencv | sort
+        echo "==== NCNN ===="
+        find app/3rdparty/ncnn | sort
 
+    # -------------------------------------------------------
+    # Build
+    # -------------------------------------------------------
     - name: Make gradlew executable
       run: chmod +x ./gradlew
 
@@ -114,9 +122,12 @@ EOF
       env:
         OpenCV_DIR: ${{ github.workspace }}/app/3rdparty/opencv/sdk/native/jni
       run: |
-        echo "OpenCV_DIR = $OpenCV_DIR"
+        echo "Using OpenCV_DIR = $OpenCV_DIR"
         ./gradlew assembleDebug --stacktrace
 
+    # -------------------------------------------------------
+    # Upload APK
+    # -------------------------------------------------------
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
